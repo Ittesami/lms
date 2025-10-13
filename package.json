@@ -1,0 +1,89 @@
+{
+  "name": "pharmacy-app",
+  "version": "1.0.0",
+  "description": "Pharmacy Management System with Electron and MongoDB",
+  "main": "electron/main.js",
+  "author": "Your Name",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently \"npm run next-dev\" \"wait-on http://localhost:3000 --timeout 60000 && cross-env NODE_ENV=development electron .\"",
+    "next-dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "electron": "cross-env NODE_ENV=development electron .",
+    "electron-build": "npm run build && electron-builder",
+    "package": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.pharmacy.electron",
+    "productName": "Pharmacy Management System",
+    "files": [
+      ".next/**/*",
+      "electron/**/*",
+      "public/**/*",
+      "server.js",
+      "package.json",
+      "node_modules/**/*",
+      "models/**/*",
+      "lib/**/*",
+      "app/**/*",
+      "components/**/*"
+    ],
+    "directories": {
+      "buildResources": "public",
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "public/icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/icon.png",
+      "category": "public.app-category.healthcare-fitness"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "public/icon.png",
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "dependencies": {
+    "@react-pdf/renderer": "^4.3.1",
+    "bcryptjs": "^3.0.2",
+    "date-fns": "^4.1.0",
+    "jose": "^6.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
+    "mongoose": "^8.19.0",
+    "next": "^14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-select": "^5.10.2"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.1",
+    "wait-on": "^7.2.0"
+  }
+}
