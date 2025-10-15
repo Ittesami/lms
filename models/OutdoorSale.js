@@ -5,7 +5,7 @@ const outdoorSaleSchema = new mongoose.Schema({
   billId: {
     type: Number,
     required: true,
-    unique: true
+    unique: true  // Remove this line since you have index below
   },
   date: {
     type: Date,
@@ -75,16 +75,12 @@ const outdoorSaleSchema = new mongoose.Schema({
   remarks: {
     type: String,
     default: ''
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
   }
 }, {
   timestamps: true
 });
 
-// Indexes
+// Keep only the index definitions, remove unique from field definition
 outdoorSaleSchema.index({ billId: 1 }, { unique: true });
 outdoorSaleSchema.index({ date: -1 });
 outdoorSaleSchema.index({ soldBy: 1 });

@@ -70,6 +70,8 @@ export async function POST(request) {
     }
 
     const data = await request.json();
+    
+    console.log('Received sale data:', JSON.stringify(data, null, 2));
 
     // Validate required fields
     if (!data.medicines || data.medicines.length === 0) {
@@ -79,47 +81,86 @@ export async function POST(request) {
     // Process medicines and validate stock
     const processedMedicines = [];
     let subtotal = 0;
+    const stockUpdates = []; // Store medicines to update after validation
 
+    // First pass: Validate all medicines and calculate totals
     for (const item of data.medicines) {
-      const medicine = await Medicine.findById(item.medicineId);
+      console.log('Processing medicine item:', item);
+      
+      // Find medicine - ensure we get a Mongoose document
+      const medicine = await Medicine.findById(item.medicineId).exec();
       
       if (!medicine) {
         return NextResponse.json({ 
-          message: `Medicine not found: ${item.medicineName}` 
+          message: `Medicine not found: ${item.medicineName || item.medicineId}` 
         }, { status: 404 });
       }
 
-      // Find the batch
-      const batch = medicine.batches.find(b => b.batchNumber === item.batchNumber);
-      
-      if (!batch) {
+      console.log('Found medicine:', {
+        id: medicine._id,
+        name: medicine.name,
+        currentStock: medicine.currentStock,
+        batchCount: medicine.batches?.length
+      });
+
+      // Verify the medicine has the deductStock method
+      if (typeof medicine.deductStock !== 'function') {
+        console.error('Medicine object is not a proper Mongoose document');
+        console.error('Medicine proto:', Object.getPrototypeOf(medicine));
         return NextResponse.json({ 
-          message: `Batch not found for ${medicine.name}` 
-        }, { status: 404 });
+          message: 'Internal error: Invalid medicine document' 
+        }, { status: 500 });
       }
 
-      if (batch.quantity < item.quantity) {
+      // Check if enough stock available
+      if (medicine.currentStock < item.quantity) {
         return NextResponse.json({ 
-          message: `Insufficient stock for ${medicine.name}. Available: ${batch.quantity}` 
+          message: `Insufficient stock for ${medicine.name}. Available: ${medicine.currentStock}, Required: ${item.quantity}` 
         }, { status: 400 });
       }
 
-      const totalPrice = batch.price * item.quantity;
-      subtotal += totalPrice;
+      // Store for second pass
+      stockUpdates.push({ medicine, quantity: item.quantity });
+    }
 
-      processedMedicines.push({
-        medicine: medicine._id,
-        medicineName: medicine.name,
-        batchNumber: batch.batchNumber,
-        quantity: item.quantity,
-        unitPrice: batch.price,
-        totalPrice
-      });
+    // Second pass: Deduct stock and create sale items
+    for (const { medicine, quantity } of stockUpdates) {
+      try {
+        console.log(`Deducting ${quantity} units from ${medicine.name}`);
+        
+        // Deduct stock using FIFO method
+        const deductResult = medicine.deductStock(quantity);
+        
+        console.log('Deduct result:', deductResult);
+        
+        if (!deductResult.success) {
+          return NextResponse.json({ 
+            message: `Could not deduct full quantity for ${medicine.name}. Short by ${deductResult.remaining} units.` 
+          }, { status: 400 });
+        }
 
-      // Deduct from stock
-      batch.quantity -= item.quantity;
-      medicine.currentStock = medicine.batches.reduce((sum, b) => sum + b.quantity, 0);
-      await medicine.save();
+        // Save the medicine with updated stock
+        await medicine.save();
+        console.log(`Stock updated for ${medicine.name}, new stock: ${medicine.currentStock}`);
+
+        // Use the batches that were actually deducted for recording
+        for (const deductedBatch of deductResult.deductedBatches) {
+          const totalPrice = deductedBatch.price * deductedBatch.quantity;
+          subtotal += totalPrice;
+
+          processedMedicines.push({
+            medicine: medicine._id,
+            medicineName: medicine.name,
+            batchNumber: deductedBatch.batchNumber,
+            quantity: deductedBatch.quantity,
+            unitPrice: deductedBatch.price,
+            totalPrice
+          });
+        }
+      } catch (deductError) {
+        console.error('Error deducting stock:', deductError);
+        throw new Error(`Failed to deduct stock for ${medicine.name}: ${deductError.message}`);
+      }
     }
 
     // Calculate totals
@@ -135,8 +176,15 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    if (paid < 0 || discount < 0) {
+      return NextResponse.json({ 
+        message: 'Paid and discount amounts must be non-negative' 
+      }, { status: 400 });
+    }
+
     // Get next bill ID
     const billId = await generateOutdoorSaleId();
+    console.log('Generated bill ID:', billId);
 
     // Create sale
     const sale = await OutdoorSale.create({
@@ -155,6 +203,8 @@ export async function POST(request) {
       remarks: data.remarks || ''
     });
 
+    console.log('Sale created:', sale._id);
+
     // Populate and return
     const populatedSale = await OutdoorSale.findById(sale._id)
       .populate('soldBy', 'fullName email')
@@ -167,6 +217,7 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Create outdoor sale error:', error);
+    console.error('Error stack:', error.stack);
     return NextResponse.json({ 
       message: 'Error creating sale',
       error: error.message 

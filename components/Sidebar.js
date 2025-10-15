@@ -69,6 +69,12 @@ export default function Sidebar({ user }) {
           icon: '🛒',
           path: '/outdoor-sales',
           permission: 'outdoor_sales'
+        },
+        {
+          name: 'Medicine Returns',
+          icon: '🛒',
+          path: '/medicine/returns',
+          permission: 'medicine_returns'
         }
       ]
     },
